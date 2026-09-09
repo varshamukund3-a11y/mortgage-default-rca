@@ -48,7 +48,6 @@ High LTV: 34.53%
 High DTI: 23.02%
 Cash-Out Refi: 21.32%
 Other / Unknown: 21.14%
-Collateral over-leverage (High LTV) is the single largest identified driver, consistent with the LTV analysis in Query 2.
 Query 9 — Shift-Share Decomposition by FICO Bucket
 Separates each FICO bucket's contribution to portfolio default rate into two components:
 Rate effect — contribution from that segment's own default rate being above/below portfolio average
@@ -61,14 +60,13 @@ All cohorts follow the expected convex curve — defaults front-loaded in early 
 2020 cohorts appear lower due to shorter observation window (censoring), not better credit quality — a methodological caveat noted in the analysis
 ---
 Key Findings Summary
-Dimension	Finding
-Credit Quality	620–659 FICO borrowers default at 10× the rate of 780+ borrowers
-Collateral	91–97 LTV loans carry nearly 3× the default rate of ≤60 LTV loans
-Loan Purpose	Purchase loans outdefault Cash-Out Refis — counterintuitive, driven by higher LTV at origination
-Root Cause	High LTV is the primary identifiable default driver (34.5% of defaults)
-Portfolio Composition	700–739 FICO is the biggest risk driver by portfolio weight, not credit quality
-Regulatory Staging	96.7% Stage 1; Stage 2/3 ratio suggests limited early-warning buffer
-Vintage Performance	Nov 2019 cohort worst performing; all cohorts show classic front-loaded default curves
+●	Credit score (FICO) is the single strongest driver of default, with a ~10x spread in default rate between the lowest and highest score bands.
+●	Shift-share decomposition confirms this is a genuine rate effect — higher-risk borrowers default at a structurally higher rate — not an artifact of how the portfolio happens to be composed.
+●	Low FICO combined with high LTV compounds risk beyond either factor alone, indicating meaningful interaction between credit quality and leverage.
+●	The portfolio is IFRS 9 Stage-1 heavy (97.7%), consistent with a prime-leaning conforming book with a thin population of higher-risk exposures.
+●	Over a third of defaults could not be attributed to a static underwriting variable, indicating limits of point-in-time underwriting data for explaining default.
+●	Vintage curves show later-2019/2020 cohorts defaulting less, though part of this is a seasoning effect (less time on book) rather than pure credit-quality improvement.
+
 ---
 Dashboard (Power BI)
 Page 1 — Main Dashboard
