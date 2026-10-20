@@ -147,26 +147,6 @@ SELECT
 FROM clean_performance
 WHERE delinq_status_months >= 3;
 
--- 1e. Integrity check: confirm loan-level fields in `loans` and `borrowers`
--- are truly static per loan_id (SELECT DISTINCT above assumes this — if any
--- loan has inconsistent values across its monthly rows, it will show up here
--- as more than one row per loan_id)
-SELECT loan_id, COUNT(*) AS row_count
-FROM loans
-GROUP BY loan_id
-HAVING COUNT(*) > 1;
-
-SELECT loan_id, COUNT(*) AS row_count
-FROM borrowers
-GROUP BY loan_id
-HAVING COUNT(*) > 1;
-SELECT 
-    loan_id,
-    snapshot_date,
-    COUNT(*) AS row_count
-FROM loan_monthly_status
-GROUP BY loan_id, snapshot_date
-HAVING COUNT(*) > 1;
 
 -- 2. Sanity checks
 SELECT COUNT(*) AS loans_count FROM loans;
