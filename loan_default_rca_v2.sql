@@ -472,7 +472,7 @@ SELECT
     -- equal reference mix (1/5), valued at portfolio default rate
     ROUND(
         p.portfolio_default_rate
-        * (s.segment_loans / p.total_loans - 1.0 / 5.0),4) AS mix_effect
+        * (s.segment_loans / p.total_loans - 1.0 / 6.0),4) AS mix_effect
 
 FROM segment_stats s
 CROSS JOIN portfolio_totals p
