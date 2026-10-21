@@ -1,102 +1,161 @@
-# mortgage-default-rca
-Mortgage Loan Default — Root Cause Analysis
-Tools: MySQL (Workbench) · Python (standard library + Google Colab) · Power BI  
-Data: Fannie Mae Single-Family Loan Performance Data, 2020Q1  
-Domain: Credit Risk · Mortgage Analytics · IFRS 9
----
-Project Overview
-This project investigates the root causes of mortgage loan defaults using Fannie Mae's publicly available loan performance data. The analysis covers borrower credit quality, collateral risk, portfolio composition, delinquency migration, regulatory staging, and vintage performance — structured to reflect the kind of multi-dimensional credit risk analysis performed in banking and risk management teams.
-The end deliverable is a two-page Power BI dashboard backed by 10 analytical SQL queries, designed to demonstrate end-to-end data skills for credit risk and data analyst roles.
----
-Data Preparation
-Fannie Mae Single-Family Loan Performance data (2020Q1) was sourced as a ~8GB pipe-delimited flat file with no column headers. An initial load of 100,000 sequential rows was attempted but discarded — all loans clustered around Dec 2019/Jan 2020 originations, making cohort and vintage analysis meaningless due to the lack of vintage spread.
-To correct this, a reservoir sampling script using only Python standard library modules (`random`, `csv`, `pathlib`) was run locally — avoiding third-party DLL restrictions on the corporate machine — to draw 150,000 random rows across the full file. This produced `2020Q1_random.csv`, which was uploaded to Google Colab where pandas mapped 25 columns by position and engineered the following derived variables:
-FICO bucket — credit score bands (620–659, 660–699, 700–739, 740–779, 780+)
-LTV bucket — loan-to-value bands (≤60, 61–75, 76–80, 81–90, 91–97)
-DPD bucket — delinquency severity (Current, 30 DPD, 60 DPD, 90 DPD, 120+ DPD)
-IFRS 9 stage — regulatory classification (Stage 1: current; Stage 2: 30+ DPD; Stage 3: 90+ DPD)
-Root cause tag — heuristic classification of defaults by primary driver (High LTV, High DTI, Cash-Out Refi, Other/Unknown)
-A `.sql` dump was generated and imported into MySQL via batched INSERT statements. All subsequent SQL analysis and Power BI visuals are based on this sample.
----
-Database Schema
-Database: `loan_rca_fnma`
-Table	Description
-`raw_performance`	Staging table — all 25 columns as VARCHAR, one row per monthly loan snapshot
-`loans`	One row per loan — origination details: LTV, loan purpose, property type, state, origination date
-`borrowers`	One row per loan — FICO bucket, DTI
-`loan_monthly_status`	One row per loan per month — DPD, DPD bucket, IFRS 9 stage
-`default_events`	Only loans that reached 90+ DPD — with root cause tag and severity
----
-Analysis — SQL Queries
-Query 1 — Default Rate by FICO Bucket
-Measures default rate across five credit score bands. Clear inverse relationship observed: borrowers in the 620–659 band default at 5.05%, versus 0.51% for 780+ borrowers — a 10× difference in credit risk across the FICO spectrum.
-Query 2 — Default Rate by LTV Bucket
-Measures default rate by loan-to-value ratio. Higher LTV consistently predicts higher default: 91–97 LTV loans default at 2.27%, compared to 0.78% for ≤60 LTV loans. Collateral cushion is a meaningful risk differentiator even within a performing portfolio.
-Query 3 — Default Rate by FICO × LTV (Combined Segmentation)
-Two-dimensional risk matrix crossing FICO and LTV buckets. Identifies the highest-risk segment as low FICO + high LTV — confirming that risk factors compound multiplicatively rather than additively.
-Query 4 — Default Rate by State
-Geographic distribution of defaults. Virgin Islands (VI), Nevada (NV), and Hawaii (HI) show elevated rates, though small loan counts in some states limit statistical reliability. California, New York, and Florida show moderate but meaningful default rates given their portfolio size.
-Query 5 — Default Rate by Loan Purpose
-Counterintuitive finding: Purchase loans defaulted at a higher rate than Cash-Out Refinance loans in this sample. This challenges the conventional assumption that cash-out refis are riskier, and likely reflects the higher LTV and lower seasoning of purchase loans in the observation window.
-Query 6 — IFRS 9 Stage Distribution
-Portfolio-level regulatory staging snapshot: 96.66% Stage 1 (performing), 1.52% Stage 2 (watchlist), 1.81% Stage 3 (credit-impaired). The Stage 2 / Stage 3 ratio of approximately 1:1.2 is worth monitoring — a healthy portfolio typically sees Stage 2 as a meaningful early-warning buffer ahead of Stage 3.
-Query 7 — DPD Migration Analysis (LAG Window Function)
-Month-over-month transition tracking using `LAG()` to identify loans moving between delinquency states. Captures cure rates (loans returning to Current), deterioration paths (30→60→90+ DPD), and re-default patterns. This is the closest equivalent to a transition matrix in SQL.
-Query 8 — Root Cause Breakdown
-Heuristic classification of defaulted loans by primary driver:
-High LTV: 34.53%
-High DTI: 23.02%
-Cash-Out Refi: 21.32%
-Other / Unknown: 21.14%
-Query 9 — Shift-Share Decomposition by FICO Bucket
-Separates each FICO bucket's contribution to portfolio default rate into two components:
-Rate effect — contribution from that segment's own default rate being above/below portfolio average
-Mix effect — contribution from that segment's share of the total portfolio
-Key finding: the 700–739 FICO bucket is the largest portfolio risk driver not because it has the worst credit quality, but because it represents the largest share of the portfolio (19.79%). The 780+ bucket, despite excellent credit quality (negative rate effect), contributes positively to portfolio risk purely through its 36.86% portfolio weight.
-Query 10 — Vintage / Cohort Analysis
-Cumulative default rate by months-on-book, segmented by origination cohort (monthly vintages from Aug 2019 to Mar 2020, filtered to cohorts with ≥100 loans originated). Key findings:
-November 2019 vintage has the highest observed cumulative default rate (1.86% at ~75 months seasoning)
-All cohorts follow the expected convex curve — defaults front-loaded in early seasoning, gradually flattening
-2020 cohorts appear lower due to shorter observation window (censoring), not better credit quality — a methodological caveat noted in the analysis
----
-Key Findings Summary
-●	Credit score (FICO) is the single strongest driver of default, with a ~10x spread in default rate between the lowest and highest score bands.
-●	Shift-share decomposition confirms this is a genuine rate effect — higher-risk borrowers default at a structurally higher rate — not an artifact of how the portfolio happens to be composed.
-●	Low FICO combined with high LTV compounds risk beyond either factor alone, indicating meaningful interaction between credit quality and leverage.
-●	The portfolio is IFRS 9 Stage-1 heavy (97.7%), consistent with a prime-leaning conforming book with a thin population of higher-risk exposures.
-●	Over a third of defaults could not be attributed to a static underwriting variable, indicating limits of point-in-time underwriting data for explaining default.
-●	Vintage curves show later-2019/2020 cohorts defaulting less, though part of this is a seasoning effect (less time on book) rather than pure credit-quality improvement.
+Mortgage Loan Default: Root Cause Analysis
 
----
-Dashboard (Power BI)
-Page 1 — Main Dashboard
-Default Rate by FICO Bucket (bar chart)
-Default Rate by LTV Bucket (bar chart)
-Default Rate by State (bar chart)
-Default Root Cause Breakdown (donut chart)
-IFRS 9 Stage Distribution (bar chart)
-Shift-Share Decomposition by FICO Bucket (clustered bar — rate effect vs mix effect)
-Page 2 — Vintage Analysis
-Cumulative Default Rate by Vintage Cohort (line chart — 8 cohort lines, months-on-book on X-axis)
----
-Limitations & Caveats
-Sample size: 150,000 rows from a single quarterly file. Findings are directionally valid but not statistically extrapolable to the full Fannie Mae universe.
-Observation window: All data comes from a single performance file snapshot. Later-vintage cohorts (2020) have fewer months of observed performance and will understate true lifetime default rates.
-Root cause heuristics: Root cause tags are rule-based approximations, not model-derived. A loan tagged "High LTV" may have defaulted for unrelated reasons.
-Geographic thin cells: Several states (VI, HI, NV) show high default rates but have small loan counts — interpret with caution.
----
-Repository Structure
-```
-├── data_prep/
-│   └── reservoir_sample.py       # Standard-library reservoir sampling script
-├── sql/
-│   ├── 01_schema.sql             # Table creation
-│   ├── 02_transform.sql          # Raw → loans/borrowers/loan_monthly_status/default_events
-│   ├── 03_analysis_queries.sql   # All 10 analytical queries
-├── exports/                      # CSV exports used in Power BI
-├── dashboard/
-│   └── loan_default_rca.pbix     # Power BI dashboard file
-└── README.md
-```
----
-Data source: Fannie Mae Single-Family Loan Performance Data (publicly available). This project is for portfolio and educational purposes only.
+Tools: MySQL · Python (standard library + pandas on Google Colab) · Power BI Data: Fannie Mae Single-Family Loan Performance Data, 2020Q1 acquisition cohort Domain: Credit risk · Mortgage analytics · IFRS 9
+
+
+What this project does
+
+This project asks one question: what drives mortgage loans to default?
+
+I sampled about 150,000 loans from Fannie Mae's public loan performance data, loaded them into MySQL, and wrote SQL queries to compare default rates across credit score, loan-to-value (LTV), state, and other loan features. I also tracked how delinquency moves from month to month, classified loans into IFRS 9 stages, compared origination cohorts by loan age, and split each credit score band's risk contribution using shift-share decomposition. The results are shown in a two-page Power BI dashboard.
+
+A loan is treated as defaulted when it reaches 90 or more days past due (DPD).
+
+Key findings
+Credit score is the strongest driver of default. The default rate is 5.05% for the 620–659 band and 0.51% for the 780+ band, a gap of about 10×.
+LTV matters too, but less. The default rate rises from 0.75% (LTV ≤60) to 2.29% (LTV 91–97), about 3×.
+Low credit score and high leverage compound. The worst combination (FICO 620–659, LTV 81–90) defaults at 7.28%, higher than either factor alone.
+Shift-share suggests the credit score gap is a real difference in borrower risk, not just a result of portfolio mix. See the caveats on the lower-risk bands in section 4.
+The book is mostly performing. 97.74% of records are IFRS 9 Stage 1.
+About a third of defaults could not be explained by simple underwriting variables (34.53% tagged "Other / Unknown"). Events like job loss are not in origination data.
+Later cohorts look better, partly because they have had less time to default. Cohorts should be compared at the same loan age.
+Data preparation
+The source is a very large (~8 GB) pipe-delimited file with no column headers.
+An initial load of the first 100,000 rows was discarded because the loans were clustered around Dec 2019/Jan 2020, which made cohort analysis meaningless.
+I replaced it with reservoir sampling (Python standard library only: random, csv, pathlib) to draw about 150,000 rows at random so every row has an equal chance of selection.
+In Google Colab, pandas mapped the 25 columns by position and created these derived fields:
+FICO bucket: 620–659, 660–699, 700–739, 740–779, 780+
+LTV bucket: ≤60, 61–75, 76–80, 81–90, 91–97
+DPD bucket: Current, 30, 60, 90, 120+
+IFRS 9 stage: Stage 1 (current), Stage 2 (30+ DPD), Stage 3 (90+ DPD)
+Root cause tag: a rule-based label for defaulted loans (High LTV, High DTI, Cash-Out Refi, Other / Unknown)
+A SQL dump of batched INSERT statements was imported into MySQL.
+
+The segmentation tables below cover 128,582 loans that fall in the five FICO bands and have an LTV bucket. The portfolio default rate is 1.32%.
+
+Database schema
+
+Database: loan_rca_fnma
+
+Table	Description
+raw_performance	Staging table. All 25 columns as text, one row per monthly loan snapshot
+loans	One row per loan: LTV, loan purpose, property type, state, origination date
+borrowers	One row per loan: FICO bucket, DTI
+loan_monthly_status	One row per loan per month: DPD, DPD bucket, IFRS 9 stage
+default_events	Loans that reached 90+ DPD, with root cause tag and severity
+Analysis and results
+1. Default rate by FICO band
+FICO band	Loans	Defaults	Default rate
+620–659	3,701	187	5.05%
+660–699	11,718	350	2.99%
+700–739	25,440	488	1.92%
+740–779	40,333	438	1.09%
+780+	47,390	240	0.51%
+2. Default rate by LTV band
+LTV band	Loans	Defaults	Default rate
+≤60	30,976	231	0.75%
+61–75	35,180	406	1.15%
+76–80	27,633	368	1.33%
+81–90	14,709	239	1.62%
+91–97	20,085	459	2.29%
+3. FICO × LTV: highest-risk segments
+FICO band	LTV band	Loans	Defaults	Default rate
+620–659	81–90	302	22	7.28%
+620–659	91–97	404	29	7.18%
+660–699	91–97	2,044	108	5.28%
+620–659	61–75	1,078	56	5.19%
+620–659	76–80	744	33	4.44%
+
+Some of these segments are small, so a few defaults can move the rate noticeably.
+
+4. Shift-share decomposition by FICO band
+
+Shift-share answers: does a band look risky because its borrowers default more, or just because it is a large part of the portfolio?
+
+Rate effect = (segment default rate − portfolio default rate) × segment share of portfolio
+Mix effect = (segment share − equal-weight share of 20%) × portfolio default rate
+Net = rate effect + mix effect
+
+This is a cross-sectional decomposition (across bands at one point in time) with an equal-weight benchmark, not a comparison across two time periods. Effects are in percentage points, and each effect column sums to zero because both are measured against a benchmark.
+
+FICO band	Segment rate	Portfolio rate	Segment mix	Rate effect	Mix effect	Net
+620–659	5.05%	1.32%	2.88%	+0.107	−0.227	−0.120
+660–699	2.99%	1.32%	9.11%	+0.152	−0.144	+0.008
+700–739	1.92%	1.32%	19.79%	+0.118	−0.003	+0.115
+740–779	1.09%	1.32%	31.37%	−0.075	+0.151	+0.076
+780+	0.51%	1.32%	36.86%	−0.302	+0.223	−0.079
+
+How to read it:
+
+620–659 and 660–699 have clearly positive rate effects, so these are genuinely higher-risk borrowers. The 620–659 band has a negative net because it is only 2.9% of the portfolio.
+700–739 has the largest net, mainly because its default rate is above average and it makes up nearly 20% of loans. It accounts for about 29% of all defaults.
+780+ has the lowest default rate by a wide margin. Its large share offsets part of that advantage but not all of it.
+5. IFRS 9 staging
+Stage	Records	Share
+Stage 1 (performing)	146,603	97.74%
+Stage 2 (significant increase in credit risk)	1,617	1.08%
+Stage 3 (credit-impaired)	1,780	1.19%
+6. Root cause tagging of defaults
+
+Tags are rule-based approximations, not model output. Each defaulted loan gets one tag.
+
+Root cause	Defaults	Share
+Other / Unknown	588	34.53%
+High DTI	392	23.02%
+Cash-Out Refi	363	21.32%
+High LTV	360	21.14%
+7. Default rate by state (selected)
+State	Loans	Defaults	Default rate
+NV	2,111	56	2.65%
+HI	513	12	2.34%
+NJ	3,387	73	2.16%
+FL	9,053	171	1.89%
+CA	16,433	301	1.83%
+NY	4,607	84	1.82%
+
+The Virgin Islands show 9.09% but are based on only 11 loans, so they are excluded from conclusions.
+
+8. Vintage (cohort) analysis
+
+Loans are grouped by origination month and compared by months on book (MOB), so a loan that is 12 months old is compared with other 12-month-old loans regardless of calendar date. Cohorts with fewer than 500 loans were excluded because one default can swing a small cohort's rate by several percentage points.
+
+Cohort	Cumulative default rate at MOB 36 (approx.)
+2019-09	0.35%
+2019-10	1.43%
+2019-11	1.58%
+2019-12	1.30%
+2020-01	0.93%
+2020-02	0.61%
+2020-03	0.61%
+
+Later cohorts look better, but part of that is seasoning: they have been observed for fewer months. The 2019-09 to 2019-12 cohorts are the most directly comparable, and they still show a modest improvement into late 2019.
+
+9. Delinquency migration (DPD)
+
+I used LAG() window functions to compare each loan's DPD bucket with the previous month. The observed movement was mostly short-lived early delinquency (Current → 1–29 DPD → Current), with almost no loans moving into deeper buckets. This comes from the data, not a short observation window: loans are tracked monthly over a long history. A single acquisition quarter of a mostly low-risk portfolio produces few delinquency events. I treat this section as directional only.
+
+Dashboard
+Page 1, Main dashboard: default rate by FICO, LTV and state; root cause breakdown (donut); IFRS 9 stage distribution; shift-share rate vs mix effect.
+Page 2, Vintage analysis: cumulative default rate by cohort against months on book.
+Limitations
+One acquisition quarter. All loans were acquired by Fannie Mae in Jan–Mar 2020 and the sample is about 150,000 rows. Results are directional and should not be extended to the full Fannie Mae book.
+Association, not proof of cause. The analysis shows which characteristics go with higher default rates. It does not prove that any single factor causes default.
+Root cause tags are rule-based. A loan tagged "High LTV" may have defaulted for another reason, and a loan with several risk factors gets only one tag.
+Shift-share uses an equal-weight (20%) benchmark. A different benchmark, such as a prior-period portfolio mix, would change the mix effects.
+Small segments. Some FICO × LTV cells and states have few loans, so their rates are noisy.
+Censoring in vintages. Newer cohorts have had less time to default.
+Limited delinquency depth. See section 9.
+Repository contents
+├── README.md
+├── LICENSE
+├── loan_default_rca_v2.sql      # Schema, transforms and the analytical queries
+└── SQL loan default.pbix        # Two-page Power BI dashboard
+How to reproduce
+Download the Fannie Mae Single-Family Loan Performance Data for 2020Q1 (free registration with Fannie Mae is required).
+Draw a random sample with reservoir sampling and save it as a CSV.
+Map the columns and create the derived buckets with pandas, then generate the SQL INSERT dump.
+Import into MySQL and run loan_default_rca_v2.sql.
+Open the .pbix file in Power BI Desktop and refresh from the exported tables.
+Data source and licence
+
+Data: Fannie Mae Single-Family Loan Performance Data (publicly available). This project is for portfolio and educational purposes only. Code is released under the MIT licence.
